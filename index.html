@@ -472,8 +472,8 @@
       <div class="step-box">
         <div class="section-title">第五步：圖層順序調整</div>
         <div class="btn-group">
-          <button id="btn-bring-front">移至最上層</button>
-          <button id="btn-send-back">移至最下層</button>
+          <button id="btn-bring-forward">⬆️ 往上一層</button>
+          <button id="btn-send-backward">⬇️ 往下一層</button>
           <button id="btn-delete" style="background:#5a1e1e; border-color:#802828;">刪除選取物件</button>
         </div>
       </div>
@@ -521,11 +521,11 @@
       <span class="shortcut-hint">Ctrl+V</span>
     </div>
     <div class="context-menu-divider" id="ctx-divider-2"></div>
-    <div class="context-menu-item" id="ctx-bring-front">
-      <span>⬆️ 移至最上層</span>
+    <div class="context-menu-item" id="ctx-bring-forward">
+      <span>⬆️ 往上一層</span>
     </div>
-    <div class="context-menu-item" id="ctx-send-back">
-      <span>⬇️ 移至最下層</span>
+    <div class="context-menu-item" id="ctx-send-backward">
+      <span>⬇️ 往下一層</span>
     </div>
     <div class="context-menu-item danger" id="ctx-delete">
       <span>🗑️ 刪除選取物件</span>
@@ -853,8 +853,8 @@
         const hasActive = !!activeObj;
 
         document.getElementById('ctx-copy').style.display = hasActive ? 'flex' : 'none';
-        document.getElementById('ctx-bring-front').style.display = hasActive ? 'flex' : 'none';
-        document.getElementById('ctx-send-back').style.display = hasActive ? 'flex' : 'none';
+        document.getElementById('ctx-bring-forward').style.display = hasActive ? 'flex' : 'none';
+        document.getElementById('ctx-send-backward').style.display = hasActive ? 'flex' : 'none';
         document.getElementById('ctx-delete').style.display = hasActive ? 'flex' : 'none';
         document.getElementById('ctx-divider-2').style.display = hasActive ? 'block' : 'none';
         document.getElementById('ctx-paste-obj').style.display = copiedObject ? 'flex' : 'none';
@@ -934,20 +934,22 @@
       pasteCanvasObject(lastRightClickPos.x, lastRightClickPos.y);
     });
 
-    document.getElementById('ctx-bring-front').addEventListener('click', function() {
+    document.getElementById('ctx-bring-forward').addEventListener('click', function() {
       contextMenu.style.display = 'none';
       const activeObj = canvas.getActiveObject();
-      if (activeObj) { activeObj.bringToFront(); canvas.renderAll(); saveState(); }
+      if (activeObj) { activeObj.bringForward(); canvas.renderAll(); saveState(); }
     });
 
-    document.getElementById('ctx-send-back').addEventListener('click', () => {
-      const obj = canvas.getActiveObject();
-      if (obj) { obj.sendToBack(); canvas.renderAll(); saveState(); }
+    document.getElementById('ctx-send-backward').addEventListener('click', function() {
+      contextMenu.style.display = 'none';
+      const activeObj = canvas.getActiveObject();
+      if (activeObj) { activeObj.sendBackwards(); canvas.renderAll(); saveState(); }
     });
 
-    document.getElementById('btn-delete').addEventListener('click', () => {
-      const obj = canvas.getActiveObject();
-      if (obj) { canvas.remove(obj); canvas.renderAll(); saveState(); }
+    document.getElementById('ctx-delete').addEventListener('click', function() {
+      contextMenu.style.display = 'none';
+      const activeObj = canvas.getActiveObject();
+      if (activeObj) { canvas.remove(activeObj); canvas.renderAll(); saveState(); }
     });
 
     function resizeCanvas() {
@@ -996,7 +998,6 @@
       saveState();
     };
 
-    // 💡【底圖載入核心：原生 Image 確保工作區 100% 正常渲染】
     function applyBackgroundFromUrl(url, successMsg) {
       statusText.innerText = '正在載入底圖...';
 
@@ -1148,15 +1149,26 @@
     });
     document.getElementById('stroke-width').addEventListener('change', saveState);
 
-    document.getElementById('btn-bring-front').addEventListener('click', () => {
+    // 💡【圖層控制改為往上一層 / 往下一層】
+    document.getElementById('btn-bring-forward').addEventListener('click', () => {
       const obj = canvas.getActiveObject();
-      if (obj) { obj.bringToFront(); canvas.renderAll(); saveState(); }
+      if (obj) { 
+        obj.bringForward(); 
+        canvas.renderAll(); 
+        saveState(); 
+        statusText.innerText = '已將物件往上一層';
+      }
     });
 
-    document.getElementById('btn-send-back').onclick = () => {
+    document.getElementById('btn-send-backward').addEventListener('click', () => {
       const obj = canvas.getActiveObject();
-      if (obj) { obj.sendToBack(); canvas.renderAll(); saveState(); }
-    };
+      if (obj) { 
+        obj.sendBackwards(); 
+        canvas.renderAll(); 
+        saveState(); 
+        statusText.innerText = '已將物件往下一層';
+      }
+    });
 
     document.getElementById('btn-delete').addEventListener('click', () => {
       const obj = canvas.getActiveObject();
@@ -1167,7 +1179,6 @@
     document.getElementById('btn-download').addEventListener('click', function() {
       statusText.innerText = '⏳ 正在產生 1920x1080 封面圖...';
 
-      // 預先在新分頁開啟佔位視窗（避免被瀏覽器 Popup Blocker 攔截）
       const newTab = window.open('about:blank', '_blank');
 
       try {
@@ -1253,7 +1264,6 @@
           newTab.document.close();
           statusText.innerText = `💾 封面圖已在新分頁開啟！(${sizeInMB} MB)`;
         } else {
-          // 若彈跳視窗被阻擋的備用直接下載方案
           const link = document.createElement('a');
           link.download = '新聞封面圖.jpg';
           link.href = dataURL;

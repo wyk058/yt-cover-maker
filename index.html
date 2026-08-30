@@ -32,7 +32,7 @@
         window.model = await AutoModel.from_pretrained('briaai/RMBG-1.4', { config: { model_type: 'custom' } });
         window.processor = await AutoProcessor.from_pretrained('briaai/RMBG-1.4', { config: { do_normalize: true } });
         window.isModelReady = true;
-        status.innerText = '系統已就緒，可點選底圖或直接按 Ctrl+V 貼上照片去背';
+        status.innerText = '系統已就緒，可點選底圖或按右鍵 / Ctrl+V 貼上照片去背';
       } catch (err) {
         console.error('AI 載入錯誤:', err);
         status.innerText = 'AI 模型載入中，請保持網路連線。';
@@ -305,14 +305,7 @@
       background: #111;
     }
 
-    .tips {
-      font-size: 0.8rem;
-      color: #8e8e93;
-      line-height: 1.5;
-      margin-top: auto;
-      padding-top: 8px;
-    }
-
+    /* 裁切彈窗 Modal */
     .modal-backdrop {
       display: none;
       position: fixed;
@@ -413,7 +406,7 @@
     </div>
     <div class="header-right">
       <div class="status" id="status-text">系統初始化中...</div>
-      <button class="success" id="btn-download">💾 下載封面圖 (JPG)</button>
+      <button class="success" id="btn-download">💾 開啟 / 下載封面圖</button>
     </div>
   </header>
 
@@ -485,9 +478,6 @@
         </div>
       </div>
 
-      <div class="tips">
-       
-      </div>
     </div>
 
     <div class="canvas-area" id="canvasContainer">
@@ -572,7 +562,6 @@
       glow: { color: 'rgba(255, 230, 0, 0.75)', blur: 35, offsetX: 0, offsetY: 0 }
     };
 
-    // 💡【可在此自訂 GitHub 相對路徑圖片】
     const presetBackgrounds = [
       { name: '底圖 1', url: './backgrounds/bg1.jpg' },
       { name: '底圖 2', url: './backgrounds/bg2.jpg' },
@@ -903,7 +892,7 @@
               return;
             }
           }
-          alert('剪貼簿中沒有照片！請先複製照片。');
+          alert('剪貼簿中沒有照片！');
         } else {
           alert('請直接在畫布上按鍵盤「Ctrl + V」貼上照片！');
         }
@@ -923,7 +912,7 @@
             return;
           }
         }
-        alert('剪貼簿中沒有文字！請先複製文字。');
+        alert('剪貼簿中沒有文字！');
       } catch (err) {
         alert('請直接在畫布上按鍵盤快捷鍵「Ctrl + V」即可貼上文字！');
       }
@@ -951,16 +940,14 @@
       if (activeObj) { activeObj.bringToFront(); canvas.renderAll(); saveState(); }
     });
 
-    document.getElementById('ctx-send-back').addEventListener('click', function() {
-      contextMenu.style.display = 'none';
-      const activeObj = canvas.getActiveObject();
-      if (activeObj) { activeObj.sendToBack(); canvas.renderAll(); saveState(); }
+    document.getElementById('ctx-send-back').addEventListener('click', () => {
+      const obj = canvas.getActiveObject();
+      if (obj) { obj.sendToBack(); canvas.renderAll(); saveState(); }
     });
 
-    document.getElementById('ctx-delete').addEventListener('click', function() {
-      contextMenu.style.display = 'none';
-      const activeObj = canvas.getActiveObject();
-      if (activeObj) { canvas.remove(activeObj); canvas.renderAll(); saveState(); }
+    document.getElementById('btn-delete').addEventListener('click', () => {
+      const obj = canvas.getActiveObject();
+      if (obj) { canvas.remove(obj); canvas.renderAll(); saveState(); }
     });
 
     function resizeCanvas() {
@@ -1009,18 +996,14 @@
       saveState();
     };
 
-    // 💡【底圖等比例滿版填滿核心】
+    // 💡【底圖載入核心：原生 Image 確保工作區 100% 正常渲染】
     function applyBackgroundFromUrl(url, successMsg) {
       statusText.innerText = '正在載入底圖...';
 
-      fabric.Image.fromURL(url, function(fabricImg) {
-        if (!fabricImg) {
-          statusText.innerText = '底圖載入失敗，請確認圖片路徑。';
-          return;
-        }
-
-        const scale = Math.max(ORIGINAL_WIDTH / fabricImg.width, ORIGINAL_HEIGHT / fabricImg.height);
-        
+      const img = new Image();
+      img.onload = function() {
+        const fabricImg = new fabric.Image(img);
+        const scale = Math.max(ORIGINAL_WIDTH / img.naturalWidth, ORIGINAL_HEIGHT / img.naturalHeight);
         fabricImg.set({
           scaleX: scale,
           scaleY: scale,
@@ -1035,10 +1018,13 @@
           statusText.innerText = successMsg || '底圖已成功等比例縮放至 1920x1080 滿版！';
           saveState();
         });
-      });
+      };
+      img.onerror = function() {
+        statusText.innerText = '底圖載入失敗，請確認圖片路徑。';
+      };
+      img.src = url;
     }
 
-    // 渲染預設底圖縮圖
     const presetContainer = document.getElementById('preset-bg-list');
     presetBackgrounds.forEach((bg, index) => {
       const item = document.createElement('div');
@@ -1167,18 +1153,22 @@
       if (obj) { obj.bringToFront(); canvas.renderAll(); saveState(); }
     });
 
-    document.getElementById('btn-send-back').addEventListener('click', () => {
+    document.getElementById('btn-send-back').onclick = () => {
       const obj = canvas.getActiveObject();
       if (obj) { obj.sendToBack(); canvas.renderAll(); saveState(); }
-    });
+    };
 
     document.getElementById('btn-delete').addEventListener('click', () => {
       const obj = canvas.getActiveObject();
       if (obj) { canvas.remove(obj); canvas.renderAll(); saveState(); }
     });
 
+    // 💡【在新分頁開啟合成圖片（長按即可加入相簿）】
     document.getElementById('btn-download').addEventListener('click', function() {
       statusText.innerText = '⏳ 正在產生 1920x1080 封面圖...';
+
+      // 預先在新分頁開啟佔位視窗（避免被瀏覽器 Popup Blocker 攔截）
+      const newTab = window.open('about:blank', '_blank');
 
       try {
         let quality = 0.92;
@@ -1202,17 +1192,80 @@
         }
 
         const sizeInMB = (fileSizeInBytes / (1024 * 1024)).toFixed(2);
-        const link = document.createElement('a');
-        link.download = '新聞封面圖.jpg';
-        link.href = dataURL;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
 
-        statusText.innerText = `💾 封面圖下載成功！(${sizeInMB} MB)`;
+        if (newTab) {
+          newTab.document.write(`
+            <!DOCTYPE html>
+            <html lang="zh-TW">
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>新聞封面圖預覽 (長按儲存)</title>
+              <style>
+                * { box-sizing: border-box; margin: 0; padding: 0; }
+                body {
+                  background: #121212;
+                  color: #fff;
+                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  justify-content: center;
+                  min-height: 100vh;
+                  padding: 16px;
+                }
+                .tip {
+                  font-size: 1.05rem;
+                  font-weight: 700;
+                  color: #ff3b30;
+                  background: #252528;
+                  border: 1px solid #3a3a3c;
+                  padding: 10px 20px;
+                  border-radius: 30px;
+                  margin-bottom: 16px;
+                  text-align: center;
+                  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+                }
+                .img-container {
+                  max-width: 100%;
+                  max-height: 85vh;
+                  border-radius: 8px;
+                  overflow: hidden;
+                  box-shadow: 0 8px 32px rgba(0,0,0,0.9);
+                }
+                img {
+                  width: 100%;
+                  height: auto;
+                  max-height: 85vh;
+                  display: block;
+                  object-fit: contain;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="tip">👆 請長按下方圖片，點選「加入照片」或「另存圖片」！</div>
+              <div class="img-container">
+                <img src="${dataURL}" alt="新聞封面圖">
+              </div>
+            </body>
+            </html>
+          `);
+          newTab.document.close();
+          statusText.innerText = `💾 封面圖已在新分頁開啟！(${sizeInMB} MB)`;
+        } else {
+          // 若彈跳視窗被阻擋的備用直接下載方案
+          const link = document.createElement('a');
+          link.download = '新聞封面圖.jpg';
+          link.href = dataURL;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          statusText.innerText = `💾 封面圖下載成功！(${sizeInMB} MB)`;
+        }
       } catch (err) {
-        console.error('下載失敗:', err);
-        statusText.innerText = '❌ 下載失敗，請確認圖片載入是否正常。';
+        console.error('開啟失敗:', err);
+        statusText.innerText = '❌ 產生失敗，請確認圖片載入是否正常。';
+        if (newTab) newTab.close();
       }
     });
   </script>
